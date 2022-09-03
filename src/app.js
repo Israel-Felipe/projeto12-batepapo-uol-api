@@ -10,7 +10,7 @@ dotenv.config();
 const mongoClient = new MongoClient(process.env.MONGO_URI);
 let db;
 mongoClient.connect(() => {
-  db = mongoClient.db("batepapoUOL");
+  db = mongoClient.db('batepapoUOL');
 });
 
 const app = express();
@@ -67,7 +67,7 @@ app.post('/participants', async (req, res) => {
 app.get('/participants', async (req, res) => {
     try {
         const participants = await db.collection('participants').find().toArray();
-        res.status(200).send(participants.reverse());
+        res.status(200).send(participants);
       } catch (error) {
         console.error(error);
         res.sendStatus(500);
@@ -85,14 +85,8 @@ app.post('/messages', async (req, res) => {
         return;
     } 
 
-    let type ="message";
-    if (req.body.to !== "Todos") {
-        type = "private_message";
-    }
-
     const message = {
         ...body,
-        type,
         from,
         time: dayjs().format('HH:mm:ss')
     }
@@ -150,6 +144,54 @@ app.get('/messages', async (req, res) => {
       }
 });
 
+app.post('/status', async (req, res) => {
+    const { user } = req.headers;
+    const valid = await db.collection('participants').findOne({name: user});
+    console.log(valid);
+
+    if (!valid) {
+        res.sendStatus(404);
+        return;
+    }
+
+    try {
+        res.sendStatus(200);
+
+        const userOn = { name: user };
+        const attUser = { $set: { lastStatus: Date.now() } };
+
+        await db.collection('participants').updateOne(userOn, attUser);
+
+      } catch (error) {
+        console.error(error);
+        res.sendStatus(500);
+      }
+});
+
+setInterval(async () => {
+    try {
+
+    await db.collection('participants').deleteMany({ lastStatus: { $lt: (Date.now() - 10000)} });
+
+    const participants = await db.collection('participants').find().toArray();
+    
+    const participantsOffline = participants.filter(participant => participant.lastStatus < (Date.now() - 10000));
+
+    participantsOffline.forEach(async (participant) => {
+        await db.collection('messages').insertOne({
+            from: participant.name,
+            to: 'Todos',
+            text: 'sai da sala...',
+            type: 'status',
+            time: dayjs().format('HH:mm:ss')
+        });
+    });
+
+    } catch (error) {
+        console.error(error);
+        res.sendStatus(500  );
+    }
+}, 15000);
 
 
 
@@ -158,5 +200,4 @@ app.get('/messages', async (req, res) => {
 
 
 
-
-app.listen(5000, () => console.log("Servidor rodando na porta 5000"));
+app.listen(5000, () => console.log('Listening on port 5000'));
