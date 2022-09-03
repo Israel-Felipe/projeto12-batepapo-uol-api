@@ -85,8 +85,14 @@ app.post('/messages', async (req, res) => {
         return;
     } 
 
+    let type ="message";
+    if (req.body.to !== "Todos") {
+        type = "private_message";
+    }
+
     const message = {
         ...body,
+        type,
         from,
         time: dayjs().format('HH:mm:ss')
     }
@@ -130,14 +136,11 @@ app.get('/messages', async (req, res) => {
         ]
     };
 
-    let dbmessages = (await db.collection('messages').find(query).toArray()).reverse();
+    let dbmessages = await db.collection('messages').find(query).toArray();
 
     if (limit) {
-        dbmessages = (await db.collection('messages').find(query).sort({_id: -1}).limit(limit).toArray());
-    } else {
-        
+        dbmessages = (await db.collection('messages').find(query).sort({_id: -1}).limit(limit).toArray()).reverse();
     };
-
     
     try {
         res.status(200).send(dbmessages);
