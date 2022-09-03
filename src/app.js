@@ -22,6 +22,14 @@ const participantsSchema = joi.object({
     name: joi.string().required()
 });
 
+const messagesSchema = joi.object({
+    to: joi.string().required(),
+    text: joi.string().required(),
+    type: joi.valid('message').valid('private_message').required(),
+    from: joi.string().required(),
+    time: joi.required()
+});
+
 app.post('/participants', async (req, res) => {
     const participant = req.body;
 
@@ -54,6 +62,8 @@ app.post('/participants', async (req, res) => {
     };
 });
 
+
+
 app.get('/participants', async (req, res) => {
     try {
         const participants = await db.collection('participants').find().toArray();
@@ -64,10 +74,59 @@ app.get('/participants', async (req, res) => {
       }
 });
 
-app.get('/messages', async (req, res) => {
+
+
+app.post('/messages', async (req, res) => {
+    const body = req.body;
+    const from = req.headers.user;
+    const valid = await db.collection('participants').findOne({name: from});
+    if (!valid) {
+        res.status(422).send({message: 'Usuário não cadastrado'});
+        return;
+    } 
+
+    const message = {
+        ...body,
+        from,
+        time: dayjs().format('HH:mm:ss')
+    }
+
+    const validation = messagesSchema.validate(message, {abortEarly: false } );
+    if (validation.error) {
+        const error = validation.error.details.map((error) => error.message);
+        res.status(422).send(error);
+        return;
+    }
+    
     try {
-        const messages = await db.collection('messages').find().toArray();
-        res.send(messages).status(200);
+        await db.collection('messages').insertOne(message);
+        res.sendStatus(201);
+    } catch (error) {
+        console.error(error);
+        res.sendStatus(500);
+    };
+
+});
+
+
+
+app.get('/messages', async (req, res) => {
+    const { limit } = req.query;
+    const dbmessages = await db.collection('messages').find().toArray();
+
+    let messages = [];
+
+    if (limit) {
+        for (let i=0; i<limit; i++) {
+            messages.push(dbmessages.reverse()[i]);
+        }
+    } else {
+        messages = dbmessages.reverse();
+    };
+
+    
+    try {
+        res.status(200).send(messages);
       } catch (error) {
         console.error(error);
         res.sendStatus(500);
