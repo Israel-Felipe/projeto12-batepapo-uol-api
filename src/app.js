@@ -67,7 +67,7 @@ app.post('/participants', async (req, res) => {
 app.get('/participants', async (req, res) => {
     try {
         const participants = await db.collection('participants').find().toArray();
-        res.status(200).send(participants);
+        res.status(200).send(participants.reverse());
       } catch (error) {
         console.error(error);
         res.sendStatus(500);
@@ -111,22 +111,36 @@ app.post('/messages', async (req, res) => {
 
 
 app.get('/messages', async (req, res) => {
-    const { limit } = req.query;
-    const dbmessages = await db.collection('messages').find().toArray();
+    const { limit: limitStr } = req.query;
+    const limit = Number(limitStr);
+    const { user } = req.headers;
+    const valid = await db.collection('participants').findOne({name: user});
+    
+    if (!valid) {
+        res.status(422).send({message: 'Usuário não conectado'});
+        return;
+    };
 
-    let messages = [];
+    const query = {
+        $or: [
+            {type: 'message'},
+            {from: user},
+            {to: user},
+            {to: 'Todos'}
+        ]
+    };
+
+    let dbmessages = (await db.collection('messages').find(query).toArray()).reverse();
 
     if (limit) {
-        for (let i=0; i<limit; i++) {
-            messages.push(dbmessages.reverse()[i]);
-        }
+        dbmessages = (await db.collection('messages').find(query).sort({_id: -1}).limit(limit).toArray());
     } else {
-        messages = dbmessages.reverse();
+        
     };
 
     
     try {
-        res.status(200).send(messages);
+        res.status(200).send(dbmessages);
       } catch (error) {
         console.error(error);
         res.sendStatus(500);
