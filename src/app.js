@@ -19,12 +19,12 @@ app.use(express.json());
 
 
 const participantsSchema = joi.object({
-    name: joi.string().required()
+    name: joi.string().min(1).required().trim()
 });
 
 const messagesSchema = joi.object({
     to: joi.string().required(),
-    text: joi.string().required(),
+    text: joi.string().min(1).required().trim(),
     type: joi.valid('message').valid('private_message').required(),
     from: joi.string().required(),
     time: joi.required()
@@ -80,6 +80,7 @@ app.post('/messages', async (req, res) => {
     const body = req.body;
     const from = req.headers.user;
     const valid = await db.collection('participants').findOne({name: from});
+
     if (!valid) {
         res.status(422).send({message: 'Usuário não cadastrado'});
         return;
