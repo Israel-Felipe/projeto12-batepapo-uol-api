@@ -1,9 +1,9 @@
 import express from 'express';
 import cors from 'cors';
-import { MongoClient } from 'mongodb';
+import { MongoClient, ObjectId } from 'mongodb';
 import dotenv from 'dotenv';
-import joi from 'joi';
 import dayjs from 'dayjs';
+import joi from 'joi';
 
 dotenv.config();
 
@@ -168,36 +168,55 @@ app.post('/status', async (req, res) => {
       }
 });
 
+
+app.delete('/messages/:id', async (req, res) => {
+    const { user } = req.headers;
+    const id = req.params.id;
+
+    const messageDelete = await db.collection('messages').findOne({ _id: new ObjectId(id) });
+
+        if (!messageDelete) {
+            res.sendStatus(404);
+            return;
+        };
+        
+        if (messageDelete.from !== user) {
+            res.sendStatus(401);
+            return;
+        }
+
+     try {
+        await db.collection('messages').deleteOne({ _id: new ObjectId(id) });
+        res.sendStatus(200);
+    }   catch (err) {
+        console.log(err);
+        res.sendStatus(500);
+    }
+});
+
+
 setInterval(async () => {
-    try {
-
-    await db.collection('participants').deleteMany({ lastStatus: { $lt: (Date.now() - 10000)} });
-
     const participants = await db.collection('participants').find().toArray();
-    
     const participantsOffline = participants.filter(participant => participant.lastStatus < (Date.now() - 10000));
+    
+    try {
+        await db.collection('participants').deleteMany({ lastStatus: { $lt: (Date.now() - 10000)} });
 
-    participantsOffline.forEach(async (participant) => {
-        await db.collection('messages').insertOne({
-            from: participant.name,
-            to: 'Todos',
-            text: 'sai da sala...',
-            type: 'status',
-            time: dayjs().format('HH:mm:ss')
+        participantsOffline.forEach(async (participant) => {
+            await db.collection('messages').insertOne({
+                from: participant.name,
+                to: 'Todos',
+                text: 'sai da sala...',
+                type: 'status',
+                time: dayjs().format('HH:mm:ss')
+            });
         });
-    });
 
-    } catch (error) {
-        console.error(error);
-        res.sendStatus(500  );
+    } catch (err) {
+        console.error(err);
+        res.sendStatus(500);
     }
 }, 15000);
-
-
-
-
-
-
 
 
 app.listen(5000, () => console.log('Listening on port 5000'));
